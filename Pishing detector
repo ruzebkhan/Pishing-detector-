@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phishing URL Detector</title>
+<style>
+  :root{
+    --bg: #0b0f14;
+    --panel: #121821;
+    --line: #233040;
+    --text: #d7e1ea;
+    --muted: #7e93a7;
+    --accent: #38e1c6;
+    --danger: #ff5470;
+    --warn: #ffb454;
+    --mono: 'JetBrains Mono','Courier New',monospace;
+    --sans: 'Inter','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(circle at 20% -10%, #15202b 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 24px;
+  }
+  .card{
+    width:100%;
+    max-width:640px;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding: 28px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .eyebrow{
+    font-family: var(--mono);
+    font-size:12px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom:8px;
+  }
+  h1{
+    font-size: clamp(24px, 5vw, 32px);
+    font-weight:700;
+    margin-bottom: 6px;
+  }
+  p.sub{
+    color: var(--muted);
+    font-size:14px;
+    margin-bottom:24px;
+    line-height:1.5;
+  }
+  .input-row{
+    display:flex;
+    gap:10px;
+    flex-wrap: wrap;
+  }
+  input[type="text"]{
+    flex:1;
+    min-width: 200px;
+    background:#0d141c;
+    border:1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size:14px;
+    padding: 14px 16px;
+    border-radius:8px;
+    outline:none;
+    transition: border-color .15s ease;
+  }
+  input[type="text"]:focus{
+    border-color: var(--accent);
+  }
+  button{
+    background: var(--accent);
+    color:#06201c;
+    border:none;
+    font-weight:700;
+    font-size:14px;
+    padding: 14px 22px;
+    border-radius:8px;
+    cursor:pointer;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  button:active{ transform: scale(0.97); }
+  button:hover{ opacity:0.9; }
+
+  .result{
+    margin-top:24px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    overflow:hidden;
+    display:none;
+  }
+  .result.show{ display:block; }
+  .result-head{
+    padding: 16px 18px;
+    font-family: var(--mono);
+    font-weight:700;
+    font-size:15px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .result-head.safe{ background: rgba(56,225,198,0.12); color: var(--accent); }
+  .result-head.warn{ background: rgba(255,180,84,0.12); color: var(--warn); }
+  .result-head.danger{ background: rgba(255,84,112,0.12); color: var(--danger); }
+
+  .score{
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+  }
+
+  .checks{
+    padding: 16px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    background:#0d141c;
+  }
+  .check{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    font-size:13px;
+    line-height:1.5;
+    color: var(--muted);
+  }
+  .check .mark{
+    font-family: var(--mono);
+    flex-shrink:0;
+    width:18px;
+    text-align:center;
+    font-weight:700;
+  }
+  .check.fail .mark{ color: var(--danger); }
+  .check.pass .mark{ color: var(--accent); }
+  .check.fail{ color: var(--text); }
+
+  .footnote{
+    margin-top:20px;
+    font-size:12px;
+    color: var(--muted);
+    line-height:1.6;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .footnote b{ color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">URL Safety Check</div>
+    <h1>Phishing Link Detector</h1>
+    <p class="sub">
+      Niche box mein koi bhi link (URL) paste karo aur "Check" dabao.
+      Yeh tool kuch common phishing patterns check karke ek heuristic
+      (andaaza-based) result deta hai — yeh 100% guarantee nahi hai,
+      lekin suspicious links pehchaanne mein madad karta hai.
+    </p>
+
+    <div class="input-row">
+      <input type="text" id="urlInput" placeholder="e.g. http://secure-login.paypal-update.com/account" />
+      <button onclick="checkURL()">Check</button>
+    </div>
+
+    <div class="result" id="result">
+      <div class="result-head" id="resultHead">
+        <span id="resultLabel">—</span>
+        <span class="score" id="resultScore">0/0</span>
+      </div>
+      <div class="checks" id="checksList"></div>
+    </div>
+
+    <div class="footnote">
+      <b>Note:</b> Yeh ek client-side educational tool hai (sirf URL ka text pattern check karta hai).
+      Yeh real-time blacklist database ya site ka content scan nahi karta. Hamesha bank/company ki
+      official website seedhe address bar mein type karke kholo, link par click karke nahi.
+    </div>
+  </div>
+
+<script>
+function checkURL(){
+  const raw = document.getElementById('urlInput').value.trim();
+  const resultBox = document.getElementById('result');
+  const head = document.getElementById('resultHead');
+  const label = document.getElementById('resultLabel');
+  const scoreEl = document.getElementById('resultScore');
+  const checksList = document.getElementById('checksList');
+
+  if(!raw){
+    alert('Pehle ek URL daalo.');
+    return;
+  }
+
+  let urlStr = raw;
+  if(!/^https?:\/\//i.test(urlStr)){
+    urlStr = 'http://' + urlStr;
+  }
+
+  let parsed;
+  try{
+    parsed = new URL(urlStr);
+  }catch(e){
+    alert('Yeh ek valid URL nahi lag raha. Sahi format mein daalo, jaise: https://example.com');
+    return;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const fullUrl = urlStr.toLowerCase();
+  const checks = [];
+  let riskScore = 0;
+
+  // 1. HTTPS check
+  if(parsed.protocol === 'https:'){
+    checks.push({pass:true, text:'URL HTTPS use kar raha hai (encrypted connection).'});
+  }else{
+    checks.push({pass:false, text:'URL HTTP use kar raha hai, HTTPS nahi — encrypted connection nahi hai.'});
+    riskScore++;
+  }
+
+  // 2. IP address as hostname
+  const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if(ipPattern.test(host)){
+    checks.push({pass:false, text:'Domain name ki jagah seedha IP address use ho raha hai — yeh bohot common phishing trick hai.'});
+    riskScore += 2;
+  }else{
+    checks.push({pass:true, text:'Hostname mein seedha IP address nahi hai.'});
+  }
+
+  // 3. "@" symbol in URL
+  if(fullUrl.includes('@')){
+    checks.push({pass:false, text:'URL mein "@" symbol mil raha hai — browser "@" se pehle ka part ignore karke baad wale domain par le jaata hai, yeh trick spoofing ke liye use hoti hai.'});
+    riskScore += 2;
+  }else{
+    checks.push({pass:true, text:'URL mein "@" symbol nahi hai.'});
+  }
+
+  // 4. Excessive subdomains / hyphens
+  const hyphenCount = (host.match(/-/g) || []).length;
+  if(hyphenCount >= 2){
+    checks.push({pass:false, text:'Domain mein ' + hyphenCount + ' hyphens (-) hain — fake lekin official jaisi dikhne wali domains aksar zyada hyphens use karti hain.'});
+    riskScore++;
+  }else{
+    checks.push({pass:true, text:'Domain mein hyphens ki excessive use nahi hai.'});
+  }
+
+  const subdomainParts = host.split('.');
+  if(subdomainParts.length > 3){
+    checks.push({pass:false, text:'Domain mein bohot zyada subdomains hain (' + subdomainParts.length + ' parts) — yeh real domain ko hide karne ke liye use ho sakta hai.'});
+    riskScore++;
+  }else{
+    checks.push({pass:true, text:'Subdomain structure normal lag raha hai.'});
+  }
+
+  // 5. URL length
+  if(urlStr.length > 75){
+    checks.push({pass:false, text:'URL kaafi lamba hai (' + urlStr.length + ' characters) — bohot lambe URLs aksar real link ko chhupane ke liye use hote hain.'});
+    riskScore++;
+  }else{
+    checks.push({pass:true, text:'URL ki length normal range mein hai.'});
+  }
+
+  // 6. Suspicious keywords combined with brand names
+  const brandWords = ['paypal','google','facebook','amazon','apple','microsoft','netflix','bank','instagram','whatsapp','sbi','hdfc','icici','flipkart'];
+  const sensitiveWords = ['login','signin','verify','update','secure','account','confirm','password','billing'];
+
+  const hostHasBrand = brandWords.some(b => host.includes(b));
+  const hostHasSensitive = sensitiveWords.some(s => host.includes(s));
+
+  if(hostHasBrand && hostHasSensitive){
+    checks.push({pass:false, text:'Domain naam mein ek jaani-pehchaani brand ka naam aur "login/verify/secure" jaisa sensitive word ek saath hai — yeh classic phishing pattern hai (real brand sites aisa nahi karte).'});
+    riskScore += 2;
+  }else if(hostHasBrand){
+    checks.push({pass:true, text:'Brand naam domain mein hai, lekin koi extra suspicious sensitive word nahi mila.'});
+  }else{
+    checks.push({pass:true, text:'Domain mein koi suspicious brand+keyword combination nahi mila.'});
+  }
+
+  // 7. Suspicious TLDs
+  const suspiciousTlds = ['.tk','.ml','.ga','.cf','.gq','.xyz','.top','.club','.work','.support','.click'];
+  const matchedTld = suspiciousTlds.find(t => host.endsWith(t));
+  if(matchedTld){
+    checks.push({pass:false, text:'Domain "' + matchedTld + '" extension use kar raha hai — yeh free/cheap TLDs aksar phishing ya spam sites mein use hoti hain (hamesha nahi, lekin red flag hai).'});
+    riskScore++;
+  }else{
+    checks.push({pass:true, text:'Domain extension (TLD) common aur trusted lag raha hai.'});
+  }
+
+  // 8. URL shortener
+  const shorteners = ['bit.ly','tinyurl.com','t.co','goo.gl','ow.ly','is.gd','buff.ly','rebrand.ly'];
+  if(shorteners.some(s => host.includes(s))){
+    checks.push({pass:false, text:'Yeh ek URL shortener service hai — asli destination link chhupa hota hai, isliye click karne se pehle precaution rakho.'});
+    riskScore++;
+  }else{
+    checks.push({pass:true, text:'URL shortener service nahi hai.'});
+  }
+
+  // 9. Number-letter substitution (e.g. paypa1, g00gle)
+  const leetPattern = /(g[o0]{2}gle|payp[a4]l|amaz[o0]n|micr[o0]soft|faceb[o0]{2}k|netfl[i1]x)/i;
+  if(leetPattern.test(host) && !brandWords.some(b => host.split('.').includes(b))){
+    checks.push({pass:false, text:'Domain mein letters ki jagah numbers (jaise 0/o, 1/l) ka use karke brand naam ko mimic kiya gaya hai.'});
+    riskScore += 2;
+  }else{
+    checks.push({pass:true, text:'Letter/number substitution wala koi mimic pattern nahi mila.'});
+  }
+
+  // Calculate final verdict
+  const maxScore = 11;
+  let level, levelClass, levelLabel;
+  if(riskScore <= 1){
+    level='safe'; levelClass='safe'; levelLabel='✅ Likely Safe';
+  }else if(riskScore <= 4){
+    level='warn'; levelClass='warn'; levelLabel='⚠️ Suspicious — Be Careful';
+  }else{
+    level='danger'; levelClass='danger'; levelLabel='🚫 High Risk — Likely Phishing';
+  }
+
+  // Render
+  head.className = 'result-head ' + levelClass;
+  label.textContent = levelLabel;
+  scoreEl.textContent = 'Risk: ' + riskScore + '/' + maxScore;
+
+  checksList.innerHTML = '';
+  checks.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'check ' + (c.pass ? 'pass' : 'fail');
+    div.innerHTML = '<span class="mark">' + (c.pass ? '✓' : '✕') + '</span><span>' + c.text + '</span>';
+    checksList.appendChild(div);
+  });
+
+  resultBox.classList.add('show');
+}
+
+document.getElementById('urlInput').addEventListener('keypress', function(e){
+  if(e.key === 'Enter') checkURL();
+});
+</script>
+</body>
+</html>
